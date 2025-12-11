@@ -63,7 +63,7 @@ const Ella = () => {
           throw new Error("No active session");
         }
 
-        const res = await fetch(CHATKIT_SESSION_ENDPOINT, {
+        const res = await fetch(getApiUrl(CHATKIT_SESSION_ENDPOINT), {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
