@@ -27,11 +27,11 @@ def get_matches(user_id: str, limit: int = 10):
                 continue
                 
             formatted_matches.append({
-                "match_user_id": record["match_user_id"],
+                "user_id": record["match_user_id"],
                 "name": match_user.get("name"),
                 "age": match_user.get("age"),
                 "city": match_user.get("city"),
-                "tagline": match_user.get("tagline"),
+                "match_reason": match_user.get("tagline") or (f"Interests: {', '.join((record.get('overlap_interests') or [])[:3])}" if (record.get('overlap_interests') or []) else "Great match!"),
                 "score": record["score"],
                 "overlap_interests": record["overlap_interests"]
             })

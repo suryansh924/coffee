@@ -29,7 +29,8 @@ def trigger_matching(user_id: str):
             match_records.append({
                 "user_id": user_id,
                 "match_user_id": match["match_user_id"],
-                "score": round(match["score"], 2)
+                "score": round(match["score"], 2),
+                "overlap_interests": match.get("overlap_interests", [])
             })
             
         if match_records:
