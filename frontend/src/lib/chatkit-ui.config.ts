@@ -1,4 +1,5 @@
 import type { StartScreenPrompt, ThemeOption } from "@openai/chatkit";
+import { getApiUrl } from "./utils";
 
 // ============================================================
 // ENVIRONMENT CONFIG
@@ -9,7 +10,7 @@ export const CHATKIT_WORKFLOW_ID =
 
 export const CHATKIT_SESSION_ENDPOINT =
     import.meta.env.VITE_CHATKIT_SESSION_ENDPOINT?.trim() ??
-    "/api/chatkit/session";
+    getApiUrl("/api/chatkit/session");
 
 // ============================================================
 // UX COPY

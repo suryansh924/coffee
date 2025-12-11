@@ -9,6 +9,7 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 import { MatchesWidget } from "@/components/widgets/MatchesWidget";
 import { ProfileOptionsWidget } from "@/components/widgets/ProfileOptionsWidget";
+import { getApiUrl } from "@/lib/utils";
 
 const Ella = () => {
   const navigate = useNavigate();
@@ -125,11 +126,14 @@ const Ella = () => {
             return { status: "error", message: "No user_id available" };
 
           try {
-            const res = await fetch("/api/tools/save_profile_section", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ user_id, attributes }),
-            });
+            const res = await fetch(
+              getApiUrl("/api/tools/save_profile_section"),
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ user_id, attributes }),
+              }
+            );
             const data = await res.json();
             console.log("✅ Save result:", data);
             return data;
@@ -145,7 +149,9 @@ const Ella = () => {
           if (!user_id)
             return { status: "error", message: "No user_id available" };
 
-          const res = await fetch(`/api/tools/get_user_profile/${user_id}`);
+          const res = await fetch(
+            getApiUrl(`/api/tools/get_user_profile/${user_id}`)
+          );
           return await res.json();
         }
         case "trigger_matching": {
@@ -155,9 +161,12 @@ const Ella = () => {
           if (!user_id)
             return { status: "error", message: "No user_id available" };
 
-          const res = await fetch(`/api/tools/trigger_matching/${user_id}`, {
-            method: "POST",
-          });
+          const res = await fetch(
+            getApiUrl(`/api/tools/trigger_matching/${user_id}`),
+            {
+              method: "POST",
+            }
+          );
           return await res.json();
         }
         case "get_matches": {
@@ -169,7 +178,7 @@ const Ella = () => {
             return { status: "error", message: "No user_id available" };
 
           const res = await fetch(
-            `/api/tools/get_matches/${user_id}?limit=${limit || 10}`
+            getApiUrl(`/api/tools/get_matches/${user_id}?limit=${limit || 10}`)
           );
           return await res.json();
         }
@@ -194,7 +203,7 @@ const Ella = () => {
         } = await supabase.auth.getSession();
         if (session?.user.id) {
           console.log("🧵 Saving thread:", threadId);
-          fetch("/api/threads", {
+          fetch(getApiUrl("/api/threads"), {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
