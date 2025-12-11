@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
+import { getApiUrl } from "@/lib/utils";
 
 const Login = () => {
   const [email, setEmail] = useState("");
@@ -28,7 +29,7 @@ const Login = () => {
       if (session) {
         localStorage.setItem("coffee_user_id", session.user.id);
         // Sync user to backend
-        fetch("/api/users/sync", {
+        fetch(getApiUrl("/api/users/sync"), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -48,7 +49,7 @@ const Login = () => {
       if (session) {
         localStorage.setItem("coffee_user_id", session.user.id);
         // Sync user to backend
-        fetch("/api/users/sync", {
+        fetch(getApiUrl("/api/users/sync"), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
