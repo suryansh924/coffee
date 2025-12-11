@@ -1,39 +1,30 @@
-from app.db.client import get_supabase
+from app.matching_engine import compute_matches_for_user
 
 def get_matches(user_id: str, limit: int = 10):
     """
     Retrieve matches for the user from the Coffee backend.
+    Directly uses the matching engine to compute matches on the fly.
     """
-    supabase = get_supabase()
-    
     try:
-        # Join matches with users table to get profile details
-        # Supabase-py doesn't support complex joins easily in one go like SQL, 
-        # but we can select from matches and then fetch user details or use the foreign key syntax if configured.
-        # Let's try the foreign key syntax: select(*, match_user:users(*))
+        result = compute_matches_for_user(user_id)
         
-        response = supabase.table("matches")\
-            .select("*, match_user:users!match_user_id(*)")\
-            .eq("user_id", user_id)\
-            .order("score", desc=True)\
-            .limit(limit)\
-            .execute()
+        if result.get("status") != "success":
+            return result
             
-        formatted_matches = []
+        # Return the top N matches from the flat list
+        flat_matches = result["flat_matches"][:limit]
         
-        for record in response.data:
-            match_user = record.get("match_user")
-            if not match_user:
-                continue
-                
+        # Format them to match what the frontend expects
+        formatted_matches = []
+        for m in flat_matches:
             formatted_matches.append({
-                "user_id": record["match_user_id"],
-                "name": match_user.get("name"),
-                "age": match_user.get("age"),
-                "city": match_user.get("city"),
-                "match_reason": match_user.get("tagline") or (f"Interests: {', '.join((record.get('overlap_interests') or [])[:3])}" if (record.get('overlap_interests') or []) else "Great match!"),
-                "score": record["score"],
-                "overlap_interests": record["overlap_interests"]
+                "user_id": m["match_user_id"],
+                "name": m.get("name"),
+                "age": m.get("age"),
+                "city": m.get("city"),
+                "match_reason": m.get("tagline") or (f"Interests: {', '.join((m.get('overlap_interests') or [])[:3])}" if (m.get('overlap_interests') or []) else "Great match!"),
+                "score": m["score"], # 0-1 score from engine
+                "overlap_interests": m.get("overlap_interests", [])
             })
             
         return {"status": "success", "matches": formatted_matches}

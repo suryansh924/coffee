@@ -69,6 +69,24 @@ const Login = () => {
     e.preventDefault();
     setLoading(true);
 
+    // Admin Bypass
+    if (email === "admin@coffee.com") {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: "admin@coffee.com",
+        password: "admin123",
+      });
+
+      if (error) {
+        toast.error("Admin login failed: " + error.message);
+        setLoading(false);
+        return;
+      }
+
+      toast.success("Welcome back, Admin!");
+      // Auth state change listener will handle navigation
+      return;
+    }
+
     try {
       let error;
       if (authMethod === "email") {
