@@ -51,7 +51,6 @@ const Ella = () => {
     ...createBaseChatKitUIConfig(),
     api: {
       async getClientSecret(existing) {
-        console.log("🔑 getClientSecret called. Existing?", !!existing);
         // Always fetch a new token to ensure we don't use a stale/invalid one
         // especially if the SDK is retrying after a 401.
 
@@ -82,8 +81,6 @@ const Ella = () => {
       },
     },
     onClientTool: async (tool) => {
-      console.log("🔧 Client Tool Triggered:", tool.name, tool.params);
-
       // Get current user for tools that need it
       const {
         data: { session },
@@ -102,22 +99,30 @@ const Ella = () => {
           return { status: "success" };
         }
         case "show_matches_widget": {
-          console.log("Showing matches widget:", tool.params);
-          setMatchesWidget(tool.params);
+          const p = tool.params as any;
+          // Robust mapping to handle agent inconsistencies
+          const matches = (p.matches || []).map((m: any) => ({
+            user_id: m.user_id ?? m.match_user_id,
+            name: m.name,
+            age: m.age,
+            city: m.city,
+            score: m.score,
+            match_reason: m.match_reason ?? m.tagline,
+            overlap_interests: m.overlap_interests,
+          }));
+
+          setMatchesWidget({ ...p, matches });
           return { status: "displayed" };
         }
         case "show_profile_builder_options": {
-          console.log("Showing profile options:", tool.params);
           setProfileOptions(tool.params);
           return { status: "displayed" };
         }
         case "update_profile_progress": {
-          console.log("Updating profile progress:", tool.params);
           return { status: "success", updated: true };
         }
         // Backend Tools Proxy
         case "save_profile_section": {
-          console.log("💾 Saving profile section...", tool.params);
           // FORCE use of authenticated user_id to prevent agent hallucinations creating duplicate profiles
           const user_id = currentUserId;
           const { attributes } = tool.params as any;
@@ -135,7 +140,6 @@ const Ella = () => {
               }
             );
             const data = await res.json();
-            console.log("✅ Save result:", data);
             return data;
           } catch (err) {
             console.error("❌ Save failed:", err);
@@ -178,7 +182,7 @@ const Ella = () => {
             return { status: "error", message: "No user_id available" };
 
           const res = await fetch(
-            getApiUrl(`/api/tools/get_matches/${user_id}?limit=${limit || 10}`)
+            getApiUrl(`/api/tools/get_matches/${user_id}?limit=${limit || 6}`)
           );
           return await res.json();
         }
@@ -202,7 +206,6 @@ const Ella = () => {
           data: { session },
         } = await supabase.auth.getSession();
         if (session?.user.id) {
-          console.log("🧵 Saving thread:", threadId);
           fetch(getApiUrl("/api/threads"), {
             method: "POST",
             headers: { "Content-Type": "application/json" },

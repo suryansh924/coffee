@@ -1,6 +1,6 @@
 from app.matching_engine import compute_matches_for_user
 
-def get_matches(user_id: str, limit: int = 10):
+def get_matches(user_id: str, limit: int = 6):
     """
     Retrieve matches for the user from the Coffee backend.
     Directly uses the matching engine to compute matches on the fly.
@@ -24,8 +24,9 @@ def get_matches(user_id: str, limit: int = 10):
                 "city": m.get("city"),
                 "match_reason": m.get("tagline") or (f"Interests: {', '.join((m.get('overlap_interests') or [])[:3])}" if (m.get('overlap_interests') or []) else "Great match!"),
                 "score": m["score"], # 0-1 score from engine
-                "overlap_interests": m.get("overlap_interests", [])
+                "overlap_interests": (m.get("overlap_interests") or [])[:5]
             })
+            print(formatted_matches[-1])
             
         return {"status": "success", "matches": formatted_matches}
             

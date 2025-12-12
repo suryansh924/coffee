@@ -1,127 +1,186 @@
-import { useState } from "react";
-import { ChevronLeft, Send, Mic, MoreVertical } from "lucide-react";
+import { useEffect, useState, useRef } from "react";
+import { ChevronLeft, Send } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { supabase } from "@/lib/supabase";
 
 interface Message {
   id: string;
-  text: string;
-  sender: "user" | "other";
-  timestamp: Date;
+  content: string;
+  sender_id: string;
+  created_at: string;
 }
 
 const Chat = () => {
   const navigate = useNavigate();
-  const { id } = useParams();
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: "1",
-      text: "Hey! Thanks for reaching out. I'd love to grab coffee and chat about astrophysics!",
-      sender: "other",
-      timestamp: new Date(Date.now() - 3600000),
-    },
-    {
-      id: "2",
-      text: "That's great! How about this Saturday at The Daily Grind?",
-      sender: "user",
-      timestamp: new Date(Date.now() - 1800000),
-    },
-    {
-      id: "3",
-      text: "That sounds perfect! See you there at 3pm? 😊",
-      sender: "other",
-      timestamp: new Date(Date.now() - 300000),
-    },
-  ]);
+  const { id: matchId } = useParams();
+  const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [matchProfile, setMatchProfile] = useState<any>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Mock match data
-  const match = {
-    name: "Anya",
-    avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Anya",
-    online: true,
-  };
+  useEffect(() => {
+    const init = async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!session) {
+        navigate("/login");
+        return;
+      }
+      setCurrentUserId(session.user.id);
 
-  const handleSend = () => {
-    if (!input.trim()) return;
+      // Fetch match profile
+      const { data: profile } = await supabase
+        .from("users")
+        .select("name, user_id")
+        .eq("user_id", matchId)
+        .single();
+      setMatchProfile(profile);
 
-    const newMessage: Message = {
-      id: Date.now().toString(),
-      text: input,
-      sender: "user",
-      timestamp: new Date(),
+      // Fetch existing messages
+      const { data: msgs } = await supabase
+        .from("messages")
+        .select("*")
+        .or(
+          `and(sender_id.eq.${session.user.id},receiver_id.eq.${matchId}),and(sender_id.eq.${matchId},receiver_id.eq.${session.user.id})`
+        )
+        .order("created_at", { ascending: true });
+
+      if (msgs) setMessages(msgs);
+
+      // Subscribe to new messages
+      const channel = supabase
+        .channel(`chat:${matchId}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "INSERT",
+            schema: "public",
+            table: "messages",
+            filter: `receiver_id=eq.${session.user.id}`,
+          },
+          (payload) => {
+            if (payload.new.sender_id === matchId) {
+              setMessages((prev) => [...prev, payload.new as Message]);
+            }
+          }
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
     };
 
-    setMessages([...messages, newMessage]);
-    setInput("");
+    init();
+  }, [matchId, navigate]);
+
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [messages]);
+
+  const handleSend = async () => {
+    if (!input.trim() || !currentUserId || !matchId) return;
+
+    const text = input.trim();
+    setInput(""); // Optimistic clear
+
+    // Optimistic update
+    const tempId = Math.random().toString();
+    const optimisticMsg: Message = {
+      id: tempId,
+      content: text,
+      sender_id: currentUserId,
+      created_at: new Date().toISOString(),
+    };
+    setMessages((prev) => [...prev, optimisticMsg]);
+
+    const { error } = await supabase.from("messages").insert({
+      sender_id: currentUserId,
+      receiver_id: matchId,
+      content: text,
+    });
+
+    if (error) {
+      console.error("Error sending message:", error);
+      // Rollback if needed (omitted for brevity)
+    }
   };
 
+  if (!matchProfile)
+    return (
+      <div className="h-screen flex items-center justify-center">
+        Loading...
+      </div>
+    );
+
   return (
-    <div className="min-h-screen bg-background flex flex-col">
+    <div className="flex flex-col h-screen bg-background">
       {/* Header */}
-      <header className="flex items-center justify-between p-4 border-b border-border bg-background sticky top-0 z-10">
-        <div className="flex items-center gap-3 flex-1">
-          <button onClick={() => navigate(-1)} className="p-2">
-            <ChevronLeft className="w-6 h-6" />
-          </button>
-          <div className="relative">
-            <Avatar className="h-10 w-10">
-              <AvatarImage src={match.avatar} />
-              <AvatarFallback>{match.name[0]}</AvatarFallback>
-            </Avatar>
-            {match.online && (
-              <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-background" />
-            )}
-          </div>
-          <div>
-            <h2 className="font-semibold">{match.name}</h2>
-            <p className="text-xs text-muted-foreground">
-              {match.online ? "Online" : "Offline"}
-            </p>
-          </div>
-        </div>
-        <button className="p-2">
-          <MoreVertical className="w-6 h-6" />
+      <header className="flex items-center gap-3 p-4 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-10">
+        <button onClick={() => navigate(-1)} className="p-2 -ml-2">
+          <ChevronLeft className="w-6 h-6" />
         </button>
+        <Avatar className="h-10 w-10">
+          <AvatarImage
+            src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${matchProfile.user_id}`}
+          />
+          <AvatarFallback>{matchProfile.name[0]}</AvatarFallback>
+        </Avatar>
+        <div>
+          <h1 className="font-semibold">{matchProfile.name}</h1>
+          <p className="text-xs text-muted-foreground">Online</p>
+        </div>
       </header>
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {messages.map((message) => (
-          <div
-            key={message.id}
-            className={`flex ${message.sender === "user" ? "justify-end" : "justify-start"}`}
-          >
+        {messages.map((msg) => {
+          const isMe = msg.sender_id === currentUserId;
+          return (
             <div
-              className={`max-w-[75%] rounded-2xl px-4 py-3 ${
-                message.sender === "user"
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-secondary text-secondary-foreground"
-              }`}
+              key={msg.id}
+              className={`flex ${isMe ? "justify-end" : "justify-start"}`}
             >
-              <p className="text-sm">{message.text}</p>
+              <div
+                className={`max-w-[80%] rounded-2xl px-4 py-2 ${
+                  isMe
+                    ? "bg-primary text-primary-foreground rounded-br-none"
+                    : "bg-muted rounded-bl-none"
+                }`}
+              >
+                <p>{msg.content}</p>
+                <span className="text-[10px] opacity-70 mt-1 block">
+                  {new Date(msg.created_at).toLocaleTimeString([], {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
+                </span>
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
+        <div ref={scrollRef} />
       </div>
 
       {/* Input */}
       <div className="p-4 border-t border-border bg-background">
-        <div className="flex items-center gap-2">
+        <div className="flex gap-2">
           <Input
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            onKeyPress={(e) => e.key === "Enter" && handleSend()}
+            onKeyDown={(e) => e.key === "Enter" && handleSend()}
             placeholder="Type a message..."
-            className="flex-1 bg-secondary border-0"
+            className="flex-1"
           />
-          <Button size="icon" variant="ghost" className="shrink-0">
-            <Mic className="w-5 h-5" />
-          </Button>
-          <Button size="icon" onClick={handleSend} className="shrink-0">
-            <Send className="w-5 h-5" />
+          <Button onClick={handleSend} size="icon" disabled={!input.trim()}>
+            <Send className="w-4 h-4" />
           </Button>
         </div>
       </div>

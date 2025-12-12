@@ -1,34 +1,89 @@
-import { Bell, Menu, Search } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Bell } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import BottomNav from "@/components/BottomNav";
-
-const mockConversations = [
-  {
-    id: "1",
-    name: "Anya",
-    avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Anya",
-    lastMessage: "That sounds great! See you there 😊",
-    timestamp: "2m ago",
-    unread: 2,
-    online: true,
-  },
-  {
-    id: "2",
-    name: "Liam",
-    avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Liam",
-    lastMessage: "I'd love to discuss that book you mentioned",
-    timestamp: "1h ago",
-    unread: 0,
-    online: false,
-  },
-];
+import { supabase } from "@/lib/supabase";
+import { formatDistanceToNow } from "date-fns";
 
 const Conversations = () => {
   const navigate = useNavigate();
+  const [conversations, setConversations] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchConversations = async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!session) return;
+
+      const userId = session.user.id;
+
+      // Fetch all messages involving the user
+      const { data: messages, error } = await supabase
+        .from("messages")
+        .select("*")
+        .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`)
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        console.error("Error fetching messages:", error);
+        setLoading(false);
+        return;
+      }
+
+      // Group by conversation partner
+      const conversationMap = new Map();
+
+      for (const msg of messages || []) {
+        const otherId =
+          msg.sender_id === userId ? msg.receiver_id : msg.sender_id;
+        if (!conversationMap.has(otherId)) {
+          conversationMap.set(otherId, {
+            lastMessage: msg.content,
+            timestamp: msg.created_at,
+            unread: 0, // TODO: Implement read status
+            otherId: otherId,
+          });
+        }
+      }
+
+      // Fetch details for all partners
+      const partnerIds = Array.from(conversationMap.keys());
+      if (partnerIds.length > 0) {
+        const { data: users } = await supabase
+          .from("users")
+          .select("user_id, name")
+          .in("user_id", partnerIds);
+
+        const userMap = new Map(users?.map((u) => [u.user_id, u]));
+
+        const formattedConversations = partnerIds.map((id) => {
+          const conv = conversationMap.get(id);
+          const user = userMap.get(id);
+          return {
+            id: id,
+            name: user?.name || "Unknown User",
+            avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${id}`,
+            lastMessage: conv.lastMessage,
+            timestamp: conv.timestamp,
+            unread: conv.unread,
+          };
+        });
+
+        setConversations(formattedConversations);
+      } else {
+        setConversations([]);
+      }
+
+      setLoading(false);
+    };
+
+    fetchConversations();
+  }, []);
 
   return (
     <div className="min-h-screen bg-background pb-20">
@@ -39,70 +94,56 @@ const Conversations = () => {
           <div className="flex items-center gap-2">
             <button className="relative p-2">
               <Bell className="w-6 h-6" />
-              <Badge className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0 bg-destructive text-destructive-foreground">
-                3
-              </Badge>
-            </button>
-            <Avatar className="h-10 w-10">
-              <AvatarImage src="https://api.dicebear.com/7.x/avataaars/svg?seed=user" />
-              <AvatarFallback>U</AvatarFallback>
-            </Avatar>
-            <div className="w-2 h-2 bg-green-500 rounded-full absolute translate-x-7 translate-y-3" />
-            <button className="p-2">
-              <Menu className="w-6 h-6" />
             </button>
           </div>
         </div>
-
-        {/* Search */}
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input
-            placeholder="Search conversations..."
-            className="pl-10 bg-secondary border-0"
-          />
-        </div>
       </header>
 
-      {/* Conversation List */}
-      <div className="divide-y divide-border">
-        {mockConversations.map((conversation) => (
-          <Card
-            key={conversation.id}
-            className="p-4 rounded-none border-0 cursor-pointer hover:bg-secondary/50 transition-colors"
-            onClick={() => navigate(`/chat/${conversation.id}`)}
-          >
-            <div className="flex items-center gap-3">
-              <div className="relative">
-                <Avatar className="h-14 w-14">
-                  <AvatarImage src={conversation.avatar} />
-                  <AvatarFallback>{conversation.name[0]}</AvatarFallback>
-                </Avatar>
-                {conversation.online && (
-                  <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-background" />
+      <div className="p-4 space-y-2">
+        {loading ? (
+          <div className="text-center py-10">Loading chats...</div>
+        ) : conversations.length === 0 ? (
+          <div className="text-center py-10 text-muted-foreground">
+            <p>No conversations yet.</p>
+            <p className="text-sm mt-2">Start chatting with your matches!</p>
+          </div>
+        ) : (
+          conversations.map((conv) => (
+            <Card
+              key={conv.id}
+              className="cursor-pointer hover:bg-muted/50 transition-colors border-none shadow-none"
+              onClick={() => navigate(`/chat/${conv.id}`)}
+            >
+              <div className="flex items-center p-3 gap-4">
+                <div className="relative">
+                  <Avatar className="h-12 w-12">
+                    <AvatarImage src={conv.avatar} />
+                    <AvatarFallback>{conv.name[0]}</AvatarFallback>
+                  </Avatar>
+                  {/* <div className="w-3 h-3 bg-green-500 rounded-full absolute bottom-0 right-0 border-2 border-background" /> */}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex justify-between items-baseline mb-1">
+                    <h3 className="font-semibold truncate">{conv.name}</h3>
+                    <span className="text-xs text-muted-foreground whitespace-nowrap ml-2">
+                      {formatDistanceToNow(new Date(conv.timestamp), {
+                        addSuffix: true,
+                      })}
+                    </span>
+                  </div>
+                  <p className="text-sm text-muted-foreground truncate">
+                    {conv.lastMessage}
+                  </p>
+                </div>
+                {conv.unread > 0 && (
+                  <Badge className="bg-primary h-5 w-5 flex items-center justify-center p-0 rounded-full">
+                    {conv.unread}
+                  </Badge>
                 )}
               </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between mb-1">
-                  <h3 className="font-semibold truncate">{conversation.name}</h3>
-                  <span className="text-xs text-muted-foreground">
-                    {conversation.timestamp}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <p className="text-sm text-muted-foreground truncate">
-                    {conversation.lastMessage}
-                  </p>
-                  {conversation.unread > 0 && (
-                    <Badge className="ml-2 h-5 min-w-5 flex items-center justify-center bg-primary text-primary-foreground">
-                      {conversation.unread}
-                    </Badge>
-                  )}
-                </div>
-              </div>
-            </div>
-          </Card>
-        ))}
+            </Card>
+          ))
+        )}
       </div>
 
       <BottomNav />

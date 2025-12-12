@@ -29,6 +29,24 @@ def parse_embedding(emb):
             return []
     return emb
 
+def parse_list_field(x):
+    if x is None:
+        return []
+    if isinstance(x, list):
+        return x
+    if isinstance(x, str):
+        try:
+            return json.loads(x)
+        except:
+            # Fallback: comma separated
+            return [s.strip() for s in x.split(",") if s.strip()]
+    return []
+
+def normalize_location(loc):
+    if not loc:
+        return ""
+    return str(loc).strip().lower()
+
 def cosine_similarity(a, b):
     # Parse if strings
     a = parse_embedding(a)
@@ -72,9 +90,9 @@ def conflict_with_dealbreakers(user_dealbreakers, candidate):
 
     db = set(user_dealbreakers)
     attrs = (
-        set(candidate.get("interests") or []) |
-        set(candidate.get("personality_traits") or []) |
-        set(candidate.get("looking_for") or [])
+        set(parse_list_field(candidate.get("interests"))) |
+        set(parse_list_field(candidate.get("personality_traits"))) |
+        set(parse_list_field(candidate.get("looking_for")))
     )
 
     return len(db & attrs) > 0
@@ -124,7 +142,7 @@ def compute_matches_for_user(user_id: str):
     # 3. Get candidate profiles
     # -----------------------------------
     # Fetch all other users
-    candidates_res = supabase.table("users").select("*").neq("user_id", user_id).execute()
+    candidates_res = supabase.table("users").select("user_id,name,age,city,tagline,interests,looking_for,personality_traits,meeting_preferences,embedding").neq("user_id", user_id).execute()
     candidates = candidates_res.data
 
     matches = []
@@ -133,11 +151,11 @@ def compute_matches_for_user(user_id: str):
     # Intermediate values
     # -----------------------------------
     city = profile.get("city")
-    interests = profile.get("interests") or []
-    personality = profile.get("personality_traits") or []
-    looking_for = profile.get("looking_for") or []
+    interests = parse_list_field(profile.get("interests"))
+    personality = parse_list_field(profile.get("personality_traits"))
+    looking_for = parse_list_field(profile.get("looking_for"))
     meeting_pref = profile.get("meeting_preferences") or ""
-    dealbreakers = profile.get("dealbreakers") or []
+    dealbreakers = parse_list_field(profile.get("dealbreakers"))
 
     # Convert embedding to vector
     user_embedding = parse_embedding(user_embedding)
@@ -152,9 +170,9 @@ def compute_matches_for_user(user_id: str):
         c_age = candidate.get("age")
         c_city = candidate.get("city")
         c_tagline = candidate.get("tagline")
-        c_interests = candidate.get("interests")
-        c_looking_for = candidate.get("looking_for")
-        c_personality = candidate.get("personality_traits")
+        c_interests = parse_list_field(candidate.get("interests"))
+        c_looking_for = parse_list_field(candidate.get("looking_for"))
+        c_personality = parse_list_field(candidate.get("personality_traits"))
         c_meeting_pref = candidate.get("meeting_preferences")
         c_embedding = candidate.get("embedding") or [0.0] * 1536 # Placeholder
 
@@ -173,7 +191,7 @@ def compute_matches_for_user(user_id: str):
         interest_score = jaccard(interests, c_interests)
         personality_score = jaccard(personality, c_personality)
         activity_score = jaccard([meeting_pref], [c_meeting_pref]) if meeting_pref and c_meeting_pref else 0.0
-        location_score = 1.0 if c_city == city else 0.0
+        location_score = 1.0 if normalize_location(c_city) == normalize_location(city) else 0.0
 
         # Calculate a composite score for the main display
         # Weighted average: 30% Interest, 30% Semantic, 20% Location, 20% Personality

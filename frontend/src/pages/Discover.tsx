@@ -1,38 +1,48 @@
-import { Bell, Menu, Sparkles } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Bell } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import BottomNav from "@/components/BottomNav";
-
-const mockMatches = [
-  {
-    id: "1",
-    name: "Liam",
-    availability: "Weekends Only",
-    matchScore: 70,
-    avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Liam",
-    bio: "Liam shares specific intellectual hobbies. The conversation starter focuses on a deep, shared academic interest.",
-    interests: ["Coding", "Board Games", "Astrophysics"],
-    interestColors: ["green", "blue", "purple"],
-    conversationStarter: "Liam, your interest in astrophysics is fascinating! Have you read any good books on black holes recently?",
-  },
-  {
-    id: "2",
-    name: "Anya",
-    availability: "Available This Sat",
-    matchScore: 92,
-    avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Anya",
-    bio: "Elara shares many interests and has a compatible schedule, making for a smooth and engaging initial conversation.",
-    interests: ["Sci-Fi Books", "Hiking", "AI Ethics"],
-    interestColors: ["green", "blue", "purple"],
-    conversationStarter: "Curious about your favorite trail, Elara! Any recommendations for a beginner?",
-  },
-];
+import { supabase } from "@/lib/supabase";
 
 const Discover = () => {
   const navigate = useNavigate();
+  const [matches, setMatches] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchMatches = async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!session) return;
+
+      // Fetch matches and join with user details
+      // Note: We use the foreign key relationship to get the match user's details
+      const { data, error } = await supabase
+        .from("matches")
+        .select(
+          `
+          *,
+          match_details:users!match_user_id(*)
+        `
+        )
+        .eq("user_id", session.user.id)
+        .order("score", { ascending: false });
+
+      if (error) {
+        console.error("Error fetching matches:", error);
+      } else {
+        setMatches(data || []);
+      }
+      setLoading(false);
+    };
+
+    fetchMatches();
+  }, []);
 
   return (
     <div className="min-h-screen bg-background pb-20">
@@ -42,77 +52,103 @@ const Discover = () => {
         <div className="flex items-center gap-2">
           <button className="relative p-2">
             <Bell className="w-6 h-6" />
-            <Badge className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0 bg-destructive text-destructive-foreground">
-              3
-            </Badge>
-          </button>
-          <Avatar className="h-10 w-10">
-            <AvatarImage src="https://api.dicebear.com/7.x/avataaars/svg?seed=user" />
-            <AvatarFallback>U</AvatarFallback>
-          </Avatar>
-          <div className="w-2 h-2 bg-green-500 rounded-full absolute translate-x-7 translate-y-3" />
-          <button className="p-2">
-            <Menu className="w-6 h-6" />
           </button>
         </div>
       </header>
 
-      {/* Match Cards */}
       <div className="p-4 space-y-4">
-        {mockMatches.map((match) => (
-          <Card
-            key={match.id}
-            className="p-6 space-y-4 cursor-pointer hover:shadow-lg transition-shadow"
-            onClick={() => navigate(`/match/${match.id}`)}
-          >
-            {/* Header */}
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <Avatar className="h-14 w-14">
-                  <AvatarImage src={match.avatar} />
-                  <AvatarFallback>{match.name[0]}</AvatarFallback>
-                </Avatar>
-                <div>
-                  <h3 className="text-lg font-semibold">{match.name}</h3>
-                  <p className="text-sm text-muted-foreground">{match.availability}</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-1 bg-coffee-purple px-3 py-1 rounded-full">
-                <Sparkles className="w-4 h-4 text-primary" />
-                <span className="text-sm font-semibold text-primary">{match.matchScore}%</span>
-              </div>
-            </div>
-
-            {/* Bio */}
-            <p className="text-sm text-foreground">{match.bio}</p>
-
-            {/* Shared Interests */}
-            <div className="space-y-2">
-              <p className="text-sm font-medium">Shared Interests</p>
-              <div className="flex flex-wrap gap-2">
-                {match.interests.map((interest, idx) => (
-                  <Badge
-                    key={interest}
-                    className={`bg-coffee-${match.interestColors[idx]} text-foreground border-0`}
-                  >
-                    {interest}
-                  </Badge>
-                ))}
-              </div>
-            </div>
-
-            {/* Conversation Starter */}
-            <div className="space-y-2">
-              <p className="text-sm font-medium">Conversation Starter</p>
-              <p className="text-sm text-foreground">{match.conversationStarter}</p>
-            </div>
-
-            {/* Action Button */}
-            <Button className="w-full bg-primary hover:bg-primary/90 text-primary-foreground">
-              Say Hello
+        {loading ? (
+          <div className="text-center py-10">Loading matches...</div>
+        ) : matches.length === 0 ? (
+          <div className="text-center py-10 text-muted-foreground">
+            <p>No matches yet.</p>
+            <p className="text-sm mt-2">Chat with Ella to find people!</p>
+            <Button className="mt-4" onClick={() => navigate("/ella")}>
+              Chat with Ella
             </Button>
-          </Card>
-        ))}
+          </div>
+        ) : (
+          matches.map((match) => {
+            const profile = match.match_details;
+            if (!profile) return null;
+
+            return (
+              <Card key={match.id} className="overflow-hidden">
+                <CardContent className="p-0">
+                  <div className="p-4">
+                    <div className="flex justify-between items-start mb-2">
+                      <div className="flex items-center gap-3">
+                        <Avatar className="h-12 w-12">
+                          <AvatarImage
+                            src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${profile.user_id}`}
+                          />
+                          <AvatarFallback>{profile.name?.[0]}</AvatarFallback>
+                        </Avatar>
+                        <div>
+                          <h3 className="font-bold text-lg">
+                            {profile.name}, {profile.age}
+                          </h3>
+                          <p className="text-sm text-muted-foreground">
+                            {profile.city}
+                          </p>
+                        </div>
+                      </div>
+                      {match.score && (
+                        <Badge
+                          variant="secondary"
+                          className="bg-violet-100 text-violet-700"
+                        >
+                          {Math.round(match.score * 100)}% Match
+                        </Badge>
+                      )}
+                    </div>
+
+                    {profile.tagline && (
+                      <p className="text-sm text-muted-foreground mb-3 italic">
+                        "{profile.tagline}"
+                      </p>
+                    )}
+
+                    {match.overlap_interests &&
+                      match.overlap_interests.length > 0 && (
+                        <div className="flex flex-wrap gap-2 mb-4">
+                          {match.overlap_interests
+                            .slice(0, 3)
+                            .map((interest: string) => (
+                              <span
+                                key={interest}
+                                className="text-xs px-2 py-1 bg-secondary rounded-full"
+                              >
+                                {interest}
+                              </span>
+                            ))}
+                          {match.overlap_interests.length > 3 && (
+                            <span className="text-xs px-2 py-1 bg-secondary rounded-full">
+                              +{match.overlap_interests.length - 3} more
+                            </span>
+                          )}
+                        </div>
+                      )}
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <Button
+                        variant="outline"
+                        onClick={() => navigate(`/match/${profile.user_id}`)}
+                      >
+                        View Profile
+                      </Button>
+                      <Button
+                        onClick={() => navigate(`/chat/${profile.user_id}`)}
+                      >
+                        Chat
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })
+        )}
       </div>
 
       <BottomNav />

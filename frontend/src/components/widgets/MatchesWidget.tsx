@@ -59,7 +59,7 @@ export const MatchesWidget: React.FC<MatchesWidgetProps> = ({
                       {match.city}
                     </p>
                   </div>
-                  {match.score && (
+                  {match.score !== undefined && (
                     <Badge
                       variant="secondary"
                       className="bg-violet-100 text-violet-700 hover:bg-violet-200"
