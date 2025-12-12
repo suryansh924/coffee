@@ -7,6 +7,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import BottomNav from "@/components/BottomNav";
 import { supabase } from "@/lib/supabase";
+import { Loader } from "@/components/Loader";
 
 const Discover = () => {
   const navigate = useNavigate();
@@ -58,7 +59,9 @@ const Discover = () => {
 
       <div className="p-4 space-y-4">
         {loading ? (
-          <div className="text-center py-10">Loading matches...</div>
+          <div className="py-10">
+            <Loader text="Loading matches..." />
+          </div>
         ) : matches.length === 0 ? (
           <div className="text-center py-10 text-muted-foreground">
             <p>No matches yet.</p>

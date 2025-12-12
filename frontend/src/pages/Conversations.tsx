@@ -7,6 +7,7 @@ import { Card } from "@/components/ui/card";
 import BottomNav from "@/components/BottomNav";
 import { supabase } from "@/lib/supabase";
 import { formatDistanceToNow } from "date-fns";
+import { Loader } from "@/components/Loader";
 
 const Conversations = () => {
   const navigate = useNavigate();
@@ -101,7 +102,9 @@ const Conversations = () => {
 
       <div className="p-4 space-y-2">
         {loading ? (
-          <div className="text-center py-10">Loading chats...</div>
+          <div className="py-10">
+            <Loader text="Loading chats..." />
+          </div>
         ) : conversations.length === 0 ? (
           <div className="text-center py-10 text-muted-foreground">
             <p>No conversations yet.</p>

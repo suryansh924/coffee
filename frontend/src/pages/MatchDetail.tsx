@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import BottomNav from "@/components/BottomNav";
 import { supabase } from "@/lib/supabase";
+import { PageLoader } from "@/components/Loader";
 
 const MatchDetail = () => {
   const navigate = useNavigate();
@@ -61,11 +62,7 @@ const MatchDetail = () => {
   }, [id, navigate]);
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-screen">
-        Loading...
-      </div>
-    );
+    return <PageLoader />;
   }
 
   if (!profile) {

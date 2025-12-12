@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { supabase } from "@/lib/supabase";
+import { PageLoader } from "@/components/Loader";
 
 interface Message {
   id: string;
@@ -113,12 +114,7 @@ const Chat = () => {
     }
   };
 
-  if (!matchProfile)
-    return (
-      <div className="h-screen flex items-center justify-center">
-        Loading...
-      </div>
-    );
+  if (!matchProfile) return <PageLoader />;
 
   return (
     <div className="flex flex-col h-screen bg-background">

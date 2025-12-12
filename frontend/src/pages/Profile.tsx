@@ -5,6 +5,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/lib/supabase";
 import BottomNav from "@/components/BottomNav";
+import { PageLoader } from "@/components/Loader";
 
 const Profile = () => {
   const navigate = useNavigate();
@@ -44,11 +45,7 @@ const Profile = () => {
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-screen">
-        Loading...
-      </div>
-    );
+    return <PageLoader />;
   }
 
   if (!user) {

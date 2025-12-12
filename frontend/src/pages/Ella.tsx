@@ -10,6 +10,7 @@ import { supabase } from "@/lib/supabase";
 import { MatchesWidget } from "@/components/widgets/MatchesWidget";
 import { ProfileOptionsWidget } from "@/components/widgets/ProfileOptionsWidget";
 import { getApiUrl } from "@/lib/utils";
+import { PageLoader } from "@/components/Loader";
 
 const Ella = () => {
   const navigate = useNavigate();
@@ -22,9 +23,15 @@ const Ella = () => {
 
   useEffect(() => {
     const checkAuth = async () => {
+      // Artificial delay to allow ChatKit to initialize properly
+      const minDelay = new Promise((resolve) => setTimeout(resolve, 1500));
+
       const {
         data: { session },
       } = await supabase.auth.getSession();
+
+      await minDelay;
+
       if (!session) {
         navigate("/login");
       } else {
@@ -39,9 +46,8 @@ const Ella = () => {
     } = supabase.auth.onAuthStateChange((_event, session) => {
       if (!session) {
         navigate("/login");
-      } else {
-        setLoading(false);
       }
+      // Note: We rely on checkAuth for the initial loading state to ensure the delay is respected
     });
 
     return () => subscription.unsubscribe();
@@ -250,17 +256,14 @@ const Ella = () => {
     };
   }, [control, ref]);
 
-  if (loading) {
-    return (
-      <div className="h-screen flex items-center justify-center">
-        Loading...
-      </div>
-    );
-  }
-
   return (
     <div className="h-screen flex flex-col bg-background pb-16 relative">
       <div className="flex-1 relative overflow-hidden">
+        {loading && (
+          <div className="absolute inset-0 z-50 bg-background flex items-center justify-center">
+            <PageLoader text="Connecting to Ella..." />
+          </div>
+        )}
         <ChatKit ref={ref} control={control} className="h-full w-full" />
       </div>
 
